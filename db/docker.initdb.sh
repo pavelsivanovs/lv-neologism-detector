@@ -4,6 +4,7 @@ set -e
 echo "$(date) ... creating additional Tezaurs DB role"
 psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-EOSQL
 create role tezaurs_public;
+create extension fuzzystrmatch;
 EOSQL
 echo "$(date) ... role created successfully"
 
