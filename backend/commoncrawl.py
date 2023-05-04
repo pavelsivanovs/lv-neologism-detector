@@ -1,13 +1,24 @@
+import os
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import IO
+
+from utils.db import db_cursor
 
 
 @dataclass
 class Word:
     word: str
     lemma: str
+    tagset: str = None
+
+    @staticmethod
+    def get_word_from_line(line):
+        if line == '':
+            return
+        line = line.split('\t')
+        return Word(word=line[0], lemma=line[2], tagset=line[1])
 
 
 def get_text_sentence(sent: list[Word]) -> str:
@@ -17,11 +28,27 @@ def get_text_sentence(sent: list[Word]) -> str:
     return txt
 
 
+def get_similar_words(word: str, limit=5) -> list[dict]:
+    word = word.lower()
+    with db_cursor() as cur:
+        cur.execute(f'''
+            with words_with_distance as (
+                select e.id, e.heading, levenshtein('{word}', substr(lower(e.heading), 1, 200)) as distance
+                from dict.entries e
+            )
+            select * from words_with_distance wwd
+            order by wwd.distance
+            limit {limit};
+        ''')
+        return cur.fetchall()
+
+
 class CommonCrawl:
     filename = 'commoncrawl.vert'
 
-    def __init__(self, path):
-        self.path = path
+    def __init__(self, path='../corpus'):
+        backend_dir_path = os.path.abspath(os.path.dirname(__file__))
+        self.path = os.path.join(backend_dir_path, path)
 
     def get_sentence(self, line_num: int) -> list[Word]:
         sentence = []
@@ -53,6 +80,6 @@ class CommonCrawl:
 
 
 if __name__ == '__main__':
-    corpus = CommonCrawl('../corpus')
+    corpus = CommonCrawl()
     sentence = corpus.get_sentence(44967)
     print(get_text_sentence(sentence))
