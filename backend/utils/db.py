@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import psycopg
 from dotenv import load_dotenv
 from psycopg import Cursor, ServerCursor
+from psycopg.rows import dict_row
 
 from utils.logger import get_configured_logger
 
@@ -18,4 +19,4 @@ if os.path.isfile(local_file_path):
 @contextmanager
 def db_cursor() -> Cursor | ServerCursor:
     with psycopg.connect(os.getenv('DB_URL')) as conn:
-        yield conn.cursor()
+        yield conn.cursor(row_factory=dict_row)

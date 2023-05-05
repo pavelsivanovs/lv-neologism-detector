@@ -33,14 +33,15 @@ def verify_words():
 
         cur.execute('select * from dict.lemma_not_found_in_tezaurs')
         for idx, row in enumerate(cur.fetchall(), start=1):
-            if row[1] in approved or row[1] in declined:
+            if row['word'] in approved or row['word'] in declined:
                 continue
 
-            context = get_text_sentence(cor.get_sentence(row[0])).replace(row[1], f'[bold cyan]{row[1]}[/]')
+            context = get_text_sentence(cor.get_sentence(row['number_line']))\
+                .replace(row['word'], f'[bold cyan]{row["word"]}[/]')
 
             console.rule(style=Style(color='bright_black'), title=f'Word {idx}/{cur.rowcount}')
-            console.print(f'Is this a word or non-word? [underline bold cyan]{row[1]}')
-            console.print(f'Supposed lemma: [bold]{row[2]}')
+            console.print(f'Is this a word or non-word? [underline bold cyan]{row["word"]}')
+            console.print(f'Supposed lemma: [bold]{row["supposed_lemma"]}')
             console.print(f'Context:')
             console.print(f'[italic]{context}')
             console.print()
@@ -48,18 +49,18 @@ def verify_words():
             table = Table(title='Similar words')
             table.add_column('Word', style='green')
             table.add_column('Distance')
-            for word in get_similar_words(row[2]):
-                table.add_row(word[1], str(word[2]))
+            for word in get_similar_words(row["supposed_lemma"]):
+                table.add_row(word['word'], str(word['distance']))
             console.print(table)
 
             console.print('Is this word a word or not? [bright_black]\[y/n/q]')
             answer = get_key_pressed()
             console.print()
             if answer == 'y':
-                approved.append(row[1])
+                approved.append(row['word'])
                 neologisms.write(','.join(map(lambda x: str(x), row)) + '\n')
             elif answer == 'n':
-                declined.append(row[1])
+                declined.append(row['word'])
             elif answer == 'q':
                 console.rule()
                 console.print(f'You have iterated over {idx} \[{cur.rowcount}] words')
