@@ -33,7 +33,7 @@ def get_similar_words(word: str, limit=5) -> list[dict]:
     with db_cursor() as cur:
         cur.execute(f'''
             with words_with_distance as (
-                select e.id, e.heading, levenshtein('{word}', substr(lower(e.heading), 1, 200)) as distance
+                select e.id, e.heading as word, levenshtein('{word}', substr(lower(e.heading), 1, 200)) as distance
                 from dict.entries e
             )
             select * from words_with_distance wwd
