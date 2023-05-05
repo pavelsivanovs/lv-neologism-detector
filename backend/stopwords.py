@@ -1,6 +1,9 @@
+from functools import cache
+
 import requests
 
 
+@cache
 def get_stopwords() -> list[str]:
     req = requests.get('https://raw.githubusercontent.com/stopwords-iso/stopwords-lv/master/stopwords-lv.json',
                        stream=False)
