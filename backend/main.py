@@ -10,27 +10,9 @@ from utils.logger import get_configured_logger
 logger = get_configured_logger(__name__)
 
 
-def is_word_in_db(word: str) -> bool:
-    """ Checks whether word is present among dictionary entries. """
-    with db_cursor() as cur:
-        q = 'select id from dict.entries where lower(heading) = %s'
-        cur.execute(q, (word,))
-        return bool(cur.fetchone())
-
-
 def is_neologism(word: str) -> float:
     """ Returns probability of a word being a real neologism, """
     pass
-
-
-def normalize_lemma(word: Word):
-    if word.tagset[0] == 'v':
-        # removing "ne-" from lemma
-        if word.tagset[-1:] == 'y':
-            word.lemma = word.lemma[2:]
-
-    # removing "-šana" and substituting it with "-t"
-    word.lemma = re.sub(r'šana$', 't', word.lemma)
 
 
 def write_non_existing_lemmas_to_csv():
