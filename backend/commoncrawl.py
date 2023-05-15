@@ -1,3 +1,4 @@
+import dataclasses
 import os
 import re
 from contextlib import contextmanager
@@ -12,6 +13,13 @@ class Word:
     word: str
     lemma: str
     tagset: str = None
+    sentence: str = None
+
+    def __init__(self, **kwargs):
+        names = set([f.name for f in dataclasses.fields(self)])
+        for k, v in kwargs.items():
+            if k in names:
+                setattr(self, k, v)
 
     @staticmethod
     def get_word_from_line(line):
