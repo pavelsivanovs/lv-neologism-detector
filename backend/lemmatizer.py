@@ -6,7 +6,7 @@ from typing import List
 from pexpect import EOF, TIMEOUT, spawn
 
 from commoncrawl import Word
-from utils.db import db_cursor
+from utils.db import db_cursor, is_word_in_db
 from utils.logger import get_configured_logger
 
 logger = get_configured_logger(__name__)
@@ -32,28 +32,25 @@ class Lemmatizer:
         self._lemmatizer.sendeof()
 
     @staticmethod
-    def normalize_lemma(self, word: Word) -> Word:
+    def normalize_lemma(word: Word) -> str:
         """ Sometimes dictionary has no entry for the lemma and these are usually the cases,
         when can we normalize lemma even more to get the respective entry in the dictionary. """
+        lemma = word.lemma
 
         # '-šana' nouns transforming to verbs if such are not in dict already
-        if word.tagset[0] == 'n' and re.match('šana$', word.lemma):
-            with db_cursor() as cur:
-                cur.execute(  # there are some nouns ending in '-šana' in dict before, so we are checking for that
-                    'select * from dict.lemma_not_found_in_tezaurs where supposed_lemma = %s limit 1',
-                    (word.lemma,))
-                if not cur.fetchone():
-                    word.lemma = re.sub(r'šana$', 't', word.lemma)
+        if word.tagset[0] == 'n' and re.search(r'šana$', lemma):
+            if not is_word_in_db(lemma):
+                lemma = re.sub(r'šana$', 't', lemma)
 
-        # if it is a verb and is negated, remove negation
-        if word.tagset[0] == 'v' and word.tagset[9] == 'y' and word.lemma[:2] == 'ne':
-            word.lemma = word.lemma[2:]
+        # if it is a negated verb, remove negation
+        if word.tagset[0] == 'v' and word.tagset[9] == 'y' and lemma[:2] == 'ne':
+            lemma = lemma[2:]
 
         # set lemma to be adjective instead of an adverb if it is possible
         if word.tagset[0] == 'r':
-            word.lemma = re.sub(r'(āk|u|i|ām)$', 's', word.lemma)
+            lemma = re.sub(r'(āk|u|i|ām)$', 's', lemma)
 
-        return word
+        return lemma
 
     def lemmatize(self, text: str) -> List[str]:
         if text == '':
@@ -71,8 +68,21 @@ class Lemmatizer:
 
 
 if __name__ == '__main__':
-    lem = Lemmatizer()
-    print(lem.lemmatize('Šis ir testa ievada teikums valodas apstrādes rīkam.'))
+    # lem = Lemmatizer()
+    # print(lem.lemmatize('Šis ir testa ievada teikums valodas apstrādes rīkam.'))
     # time.sleep(31)
     # print(lem.lemmatize('es uzdāvināju draudzenei Lego ziedu pušķa konstruktoru'))
     # # print(lem._lemmatizer)
+
+    with db_cursor() as cur:
+        cur.execute('''
+            select * 
+            from dict.lemma_not_found_in_tezaurs
+            where lemma like '%šana'
+        ''')
+        dic = cur.fetchone()
+        print(dic)
+        word = Word(**dic)
+        print(word)
+        res = Lemmatizer.normalize_lemma(word)
+        print(res)
