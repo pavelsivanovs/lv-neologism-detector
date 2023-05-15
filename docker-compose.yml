@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  db:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - DUMP_FNAME
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/docker.initdb.sh:/docker-entrypoint-initdb.d/initdb.sh
+      - ./db/dumps:/dumps
+      - ./db/data:/var/lib/postgresql/data
+
+#  tagger:
+#    image: openjdk:19
+#    restart: always
+#    volumes:
+#      - ./LVTagger:/tagger
+#      - ./backend/tagging_output:/data
+#    command: bash ./tagger/setup.sh
