@@ -1,5 +1,6 @@
 import os
 from contextlib import contextmanager
+from functools import cache
 
 import psycopg
 from dotenv import load_dotenv
@@ -14,6 +15,15 @@ local_file_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), '../.
 if os.path.isfile(local_file_path):
     logger.info(f'Loading environment from {local_file_path}')
     load_dotenv(local_file_path, verbose=True)
+
+
+@cache
+def is_word_in_db(word: str) -> bool:
+    """ Checks whether word is present among dictionary entries. """
+    with db_cursor() as cur:
+        q = 'select id from dict.entries where lower(heading) = %s'
+        cur.execute(q, (word,))
+        return bool(cur.fetchone())
 
 
 @contextmanager
