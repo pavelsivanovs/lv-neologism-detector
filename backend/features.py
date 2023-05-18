@@ -4,7 +4,9 @@ from difflib import SequenceMatcher
 
 from langdetect import detect_langs
 
-from commoncrawl import Word, CommonCrawl, get_similar_words
+from corpus.commoncrawl import CommonCrawl
+from corpus.word import Word
+from utils.db import get_similar_words
 
 
 @dataclass
@@ -53,6 +55,9 @@ class Features:
         closest_word = get_similar_words(word.lemma, limit=1)[0]
         self.typo = 1 - SequenceMatcher(None, word.lemma, closest_word['word']).ratio()
         self.levenshtein_distance_to_closest_word = closest_word['distance']
+
+    def _get_syllables(self):
+        pass
 
     def _set_lang_features(self, word: Word):
         def get_lv_lang_prob(text):
