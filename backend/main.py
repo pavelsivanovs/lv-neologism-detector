@@ -1,11 +1,16 @@
 import csv
+import json
 import re
 import time
 
-from commoncrawl import CommonCrawl, Word
-from stopwords import get_stopwords
-from utils.db import db_cursor
+from progiter import ProgIter
+
+from corpus.commoncrawl import CommonCrawl
+from corpus.word import Word
+from lemmatizer import Lemmatizer
+from utils.db import db_cursor, is_word_in_db
 from utils.logger import get_configured_logger
+from utils.stopwords import get_stopwords
 
 logger = get_configured_logger(__name__)
 
@@ -30,7 +35,7 @@ def write_non_existing_lemmas_to_csv():
 
         written_counter = 0
         for idx, line in enumerate(corpus_file, start=1):
-            if idx <= 1644955:
+            if idx <= 1644955:  # update value to the line last read in the corpus
                 continue
 
             if idx % 10000 == 0:
@@ -69,6 +74,35 @@ def model():
     pass
 
 
+def refine_lemma_not_found_table():
+    with db_cursor() as cur, \
+            open('to_delete.json', 'w', encoding='utf-8') as to_delete:
+        cur.execute('select * from dict.lemma_not_found_in_tezaurs')
+        to_remove = []
+        to_delete_arr = []
+        for row in ProgIter(cur.fetchall(), verbose=2):
+            word = Word(**row)
+            if word.lemma in to_remove:
+                to_delete_arr.append(row['number_line'])
+                continue
+            refined_lemma = Lemmatizer.normalize_lemma(word)
+            if is_word_in_db(refined_lemma):
+                to_remove.append(word.lemma)
+                to_delete_arr.append(row['number_line'])
+        json.dump(to_delete_arr, to_delete)
+
+
+def delete_from_lemma_not_found_table():
+    with db_cursor() as cur:
+        with open('to_delete.json', 'r') as to_delete:
+            lines = json.load(to_delete)
+            cur.execute('delete from dict.lemma_not_found_in_tezaurs where number_line = any( %s )', (lines,))
+
+
+def remove_the_ending_of_the_word(word: Word):
+    """ Some words are not being lemmatized correctly  """
+
+
 # TODO
 #  1. check whether there is index by words in entries table
 #  1. get the text
@@ -78,4 +112,9 @@ def model():
 
 
 if __name__ == '__main__':
-    write_non_existing_lemmas_to_csv()
+    # write_non_existing_lemmas_to_csv()
+    # refine_lemma_not_found_table()
+    delete_from_lemma_not_found_table()
+
+    # with db_cursor() as cur:
+    #     cur.execute('select * from dict.')

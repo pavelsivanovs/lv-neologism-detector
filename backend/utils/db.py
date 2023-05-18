@@ -17,6 +17,24 @@ if os.path.isfile(local_file_path):
     load_dotenv(local_file_path, verbose=True)
 
 
+def get_similar_words(word: str, limit=5) -> list[dict]:
+    word = word.lower()
+    with db_cursor() as cur:
+        cur.execute('''
+            with words_with_distance as (
+                select 
+                    l.lemma as word,
+                    levenshtein(%s, substr(lower(l.lemma), 1, 200)) as distance,
+                    similarity(%s, l.lemma) as similarity
+                from dict.lemmas l
+            )
+            select * from words_with_distance wwd
+            order by wwd.distance
+            limit %s;
+        ''', (word, word, limit))
+        return cur.fetchall()
+
+
 @cache
 def is_word_in_db(word: str) -> bool:
     """ Checks whether word is present among dictionary entries. """
