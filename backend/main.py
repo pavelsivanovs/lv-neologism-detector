@@ -50,7 +50,7 @@ def write_non_existing_lemmas_to_csv():
 
             line = re.split(r'[\t\n]', line)
 
-            if line[1][0] == 'z' or is_word_in_db(line[2].lower()):
+            if line[1][0] == 'z' or is_word_in_db(line[2]):
                 continue
 
             written_counter += 1

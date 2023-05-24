@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from psycopg import Cursor, ServerCursor
 from psycopg.rows import dict_row
 
+from corpus.word import Word
 from utils.logger import get_configured_logger
 
 logger = get_configured_logger(__name__)
@@ -38,8 +39,11 @@ def get_similar_words(word: str, limit=5) -> list[dict]:
 @cache
 def is_word_in_db(word: str) -> bool:
     """ Checks whether word is present among dictionary entries. """
+    if isinstance(word, Word):
+        word = word.lemma
+    word = word.lower()
     with db_cursor() as cur:
-        q = 'select id from dict.entries where lower(heading) = %s'
+        q = 'select lemma from dict.lemmas where lemma = %s'
         cur.execute(q, (word,))
         return bool(cur.fetchone())
 
