@@ -5,11 +5,16 @@ from typing import List
 
 from pexpect import EOF, TIMEOUT, spawn
 
-from commoncrawl import Word
+from corpus.word import Word
 from utils.db import db_cursor, is_word_in_db
 from utils.logger import get_configured_logger
 
 logger = get_configured_logger(__name__)
+
+
+class TooLongSentenceToLemmatizeException(Exception):
+    """ Exception for sentences that are too long to lemmatize. """
+    pass
 
 
 class Lemmatizer:
@@ -52,10 +57,14 @@ class Lemmatizer:
 
         return lemma
 
-    def lemmatize(self, text: str) -> List[str]:
+    def lemmatize(self, text: str) -> List[Word]:
         if text == '':
             logger.error('Empty string has been supplied to lemmatizer. Throwing exception.')
             raise Exception('Unintentional termination of the lemmatizer process by passing an empty string.')
+        if len(text) > self._byte_limit_per_line:
+            logger.error(f'Text length exceeds the limit of {self._byte_limit_per_line} bytes. Throwing exception.')
+            raise TooLongSentenceToLemmatizeException(
+                f'Text length exceeds the limit of {self._byte_limit_per_line} bytes.')
 
         try:
             self._lemmatizer.sendline(text)
@@ -65,6 +74,12 @@ class Lemmatizer:
         except EOF or TIMEOUT as exception:
             print(exception)
             raise exception
+
+
+def bad_word(word: Word) -> bool:
+    if not word.word or word.tagset[0] == 'z':
+        return True
+    return False
 
 
 if __name__ == '__main__':
