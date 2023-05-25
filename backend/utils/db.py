@@ -25,7 +25,8 @@ def get_similar_words(word: str, limit=5) -> list[dict]:
             with words_with_distance as (
                 select 
                     l.lemma as word,
-                    levenshtein(%s, substr(lower(l.lemma), 1, 200)) as distance,
+                    -- charge twice for insert and delete
+                    levenshtein(%s, substr(lower(l.lemma), 1, 200), 2, 2, 1) as distance,
                     similarity(%s, l.lemma) as similarity
                 from dict.lemmas l
             )
