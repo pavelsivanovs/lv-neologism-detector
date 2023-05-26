@@ -96,7 +96,7 @@ class Features:
 
 
 if __name__ == '__main__':
-    with db_cursor() as cur, open('dairies_result_onehot.csv', 'w') as features_file:
+    with db_cursor() as cur, open('dairies_features_onehot.csv', 'w') as features_file:
         csv_writer = csv.writer(features_file)
         cur.execute('select * from dict.lemmas_not_found_in_dairies where is_neologism is not null')
         words = cur.fetchall()
