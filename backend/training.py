@@ -32,7 +32,7 @@ class NeologismClassificator(nn.Module):
 class NeologismClassificatorDataset(data.Dataset):
     def __init__(self, corpus='pandemics'):
         if corpus == 'pandemics':
-            features = pd.read_csv('dairies_result_onehot.csv', dtype=float)
+            features = pd.read_csv('dairies_features_onehot.csv', dtype=float)
             self.input_data = torch.tensor(features.values, dtype=torch.float32)
             result = pd.read_csv('dairies_result.csv', dtype=float)
             self.result = torch.tensor(result.values, dtype=torch.float32)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     logger.info(f'Device: {device}')
 
-    epoch_count = 500
+    epoch_count = 3000
     learning_rate = 0.01
     batch_size = 64
 
@@ -82,8 +82,7 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            result = torch.tensor(list(map(lambda x: round(x.item()), result)), dtype=torch.float32)
-            accuracy += 1 if torch.equal(data_target, result) else 0
+            accuracy += 1 if torch.equal(result.round(), data_target) else 0
 
             total += 1
             if epoch % 100 == 0:
@@ -99,7 +98,7 @@ if __name__ == '__main__':
         model.eval()
         for inputs, results in test_loader:
             outputs = model(inputs)
-            # accuracy += round(outputs.flatten()[0]) == results
+            accuracy += 1 if torch.equal(outputs.round(), results) else 0
             total += 1
         print(f'Accuracy: {accuracy/total:.2%}')
         print(f'Total: {total}')
