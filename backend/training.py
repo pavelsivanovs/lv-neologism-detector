@@ -1,9 +1,11 @@
+import matplotlib.pyplot as plt
 import pandas as pd
 import torch
-from progiter import ProgIter
 from torch import nn
+from torch.nn.functional import binary_cross_entropy_with_logits
 from torch.utils import data
 from torch.utils.data import random_split
+from torcheval.metrics.functional import binary_accuracy, binary_recall, binary_precision, binary_f1_score
 
 from utils.logger import get_configured_logger
 
@@ -14,9 +16,10 @@ class NeologismClassificator(nn.Module):
 
     def __init__(self, input_size):
         super().__init__()
-        self.lin_1 = nn.Linear(input_size, 16)
-        self.lin_2 = nn.Linear(16, 8)
-        self.lin_3 = nn.Linear(8, 1)
+        self.lin_1 = nn.Linear(input_size, 32)
+        self.lin_2 = nn.Linear(32, 16)
+        self.lin_3 = nn.Linear(16, 8)
+        self.lin_4 = nn.Linear(8, 1)
         self.act_fn = nn.Sigmoid()
 
     def forward(self, x):
@@ -25,6 +28,8 @@ class NeologismClassificator(nn.Module):
         x = self.lin_2(x)
         x = self.act_fn(x)
         x = self.lin_3(x)
+        x = self.act_fn(x)
+        x = self.lin_4(x)
         x = self.act_fn(x)
         return x
 
@@ -48,69 +53,108 @@ class NeologismClassificatorDataset(data.Dataset):
         return self.input_data[idx], self.result[idx]
 
 
-if __name__ == '__main__':
-    logger.info(f'Availability of GPU: {torch.cuda.is_available()}')
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    logger.info(f'Device: {device}')
-
-    epoch_count = 3000
-    learning_rate = 0.01
-    batch_size = 64
-
-    # TODO set up plotting
-
-    model = NeologismClassificator(input_size=21).to(device)
-    dataset = NeologismClassificatorDataset()
-    train_set, test_set = random_split(dataset, [.8, .2])
-    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=True)
-
+def train_model(model, train_loader, epoch_count, learning_rate):
     logger.info('Starting training')
 
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # tweak around the LR
 
-    accuracy_history, precision_history = [], []
-    for epoch in ProgIter(range(epoch_count)):
-        accuracy, precision, total = 0, 0, 0
-        for idx, (data_input, data_target) in enumerate(train_loader):
+    accuracy_history = []
+    loss_history = []
+    for epoch in range(epoch_count):
+        for idx, (data_input, data_target) in enumerate(train_loader, start=1):
             optimizer.zero_grad()
-
-            result = model(data_input)
-            loss = nn.functional.binary_cross_entropy_with_logits(result, data_target)
+            results = model(data_input)
+            loss = binary_cross_entropy_with_logits(results, data_target)
 
             loss.backward()
             optimizer.step()
 
-            accuracy += 1 if torch.equal(result.round(), data_target) else 0
+            results = results.round().squeeze().type(torch.int32)
+            data_target = data_target.squeeze().type(torch.int32)
 
-            total += 1
-            if epoch % 100 == 0:
-                print(f'Epoch: {epoch} [{idx}/{train_loader.batch_size}] | Accuracy: {accuracy/total:.2%}')
+            batch_accuracy = binary_accuracy(results, data_target).item()
+            batch_loss = loss.item()
 
-    # print(accuracy_history)
-    # print(precision_history)
+            accuracy_history.append(batch_accuracy)
+            loss_history.append(batch_loss)
 
-    # testing
-    logger.info('Starting testing')
-    with torch.no_grad():
-        accuracy, precision, total = 0, 0, 0
-        model.eval()
-        for inputs, results in test_loader:
-            outputs = model(inputs)
-            accuracy += 1 if torch.equal(outputs.round(), results) else 0
-            total += 1
-        print(f'Accuracy: {accuracy/total:.2%}')
-        print(f'Total: {total}')
+    batches = list(range(1, len(accuracy_history) + 1))
+    plt.rcParams['font.family'] = 'serif'
+    plt.plot(batches, accuracy_history, label='Pareizība')
+    plt.plot(batches, loss_history, label='Zaudējums')
+    plt.xlabel('Trenēšanas epohas partija')
+    plt.ylabel('Metrika')
+    plt.title('Modeļa metrikas trenēšanas gaitā')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('training_metrics.png')
+    plt.clf()
 
     # model saving
     state_dict = model.state_dict()
-    # print(state_dict)
     torch.save(state_dict, 'model.pt')
 
-    # to load model
-    # model = NeologismClassificator(input_size=21).to(device)
-    # model.load_state_dict(torch.load('model.pt'))
+
+def test_model(model, test_loader, filename):
+    logger.info('Starting testing')
+    model.load_state_dict(torch.load(filename))
+
+    accuracy_history = []
+    precision_history = []
+    recall_history = []
+    f_score_history = []
+
+    with torch.no_grad(), open('test_results.csv', 'w', encoding='utf8') as results:
+        model.eval()
+        for idx, (inputs, targets) in enumerate(test_loader, start=1):
+            results = model(inputs)
+
+            logger.debug(results.squeeze())
+            logger.debug(targets.squeeze())
+
+            results = results.round().squeeze().type(torch.int32)
+            targets = targets.squeeze().type(torch.int32)
+
+            accuracy = binary_accuracy(results, targets)
+            precision = binary_precision(results, targets)
+            recall = binary_recall(results, targets)
+            f_score = binary_f1_score(results, targets)
+
+            accuracy_history.append(accuracy)
+            precision_history.append(precision)
+            recall_history.append(recall)
+            f_score_history.append(f_score)
+
+    batches = list(range(1, len(accuracy_history) + 1))
+    plt.rcParams['font.family'] = 'serif'
+    plt.plot(batches, accuracy_history, label='Pareizība')
+    plt.plot(batches, precision_history, label='Precizitāte')
+    plt.plot(batches, recall_history, label='Pārklājums')
+    plt.plot(batches, f_score_history, label='F-mērs')
+    plt.xlabel('Testēšanas epohas partija')
+    plt.ylabel('Metrika')
+    plt.title('Modeļa metrikas testēšanas gaitā')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('testing_metrics.png')
+    plt.clf()
 
 
+if __name__ == '__main__':
+    logger.info(f'Availability of GPU: {torch.cuda.is_available()}')
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    logger.info(f'Device: {device}')
 
+    epoch_count = 1
+    learning_rate = 0.1
+    batch_size = 200
+
+    model = NeologismClassificator(input_size=21).to(device)
+    dataset = NeologismClassificatorDataset()
+    train_set, test_set = random_split(dataset, [.7, .3])
+    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    test_loader = data.DataLoader(test_set, batch_size=batch_size, shuffle=True)
+
+    train_model(model, train_loader, epoch_count, learning_rate)
+    test_model(model, test_loader, 'model.pt')
