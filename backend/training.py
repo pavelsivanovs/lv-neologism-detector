@@ -67,6 +67,28 @@ class NeologismClassificatorDataset(data.Dataset):
         return self.input_data[idx], self.result[idx]
 
 
+def draw_graph(x_label, y_label, data, title, filename):
+    plt.rcParams['font.family'] = 'serif'
+    fig, ax = plt.subplots()
+
+    x_data = list(range(1, len(data[0]['data']) + 1))
+
+    for entry in data:
+        a = np.polyfit(np.log(x_data), entry['data'], 1)
+        y_smooth = a[0] * np.log(x_data) + a[1]
+        ax.scatter(x_data, entry['data'], s=1)
+        ax.plot(x_data, y_smooth, lw=3, label=entry['label'])
+
+    ax.set_title(title)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
+    ax.legend()
+    ax.grid(True)
+    fig.savefig(filename)
+    fig.clf()
+
+
 def train_model(model, train_loader, epoch_count, learning_rate):
     logger.info('Starting training')
 
@@ -107,40 +129,12 @@ def train_model(model, train_loader, epoch_count, learning_rate):
             recall_history.append(recall)
             f_score_history.append(f_score)
 
-    batches = list(range(1, len(accuracy_history) + 1))
-    a = np.polyfit(np.log(batches), accuracy_history, 1)
-    accuracy_smooth = a[0] * np.log(batches) + a[1]
-    a = np.polyfit(np.log(batches), loss_history, 1)
-    loss_smooth = a[0] * np.log(batches) + a[1]
-    a = np.polyfit(np.log(batches), precision_history, 1)
-    precision_smooth = a[0] * np.log(batches) + a[1]
-    a = np.polyfit(np.log(batches), recall_history, 1)
-    recall_smooth = a[0] * np.log(batches) + a[1]
-    a = np.polyfit(np.log(batches), f_score_history, 1)
-    f_score_smooth = a[0] * np.log(batches) + a[1]
-
-    plt.rcParams['font.family'] = 'serif'
-    fig, ax = plt.subplots()
-
-    ax.plot(batches, accuracy_smooth, lw=3, label='Pareizība')
-    ax.scatter(batches, accuracy_history, s=1)
-    ax.plot(batches, loss_smooth, lw=3, label='Zaudējums')
-    ax.scatter(batches, loss_history, s=1)
-    ax.scatter(batches, precision_history, s=1)
-    ax.plot(batches, precision_smooth, lw=3, label='Precizitāte')
-    ax.scatter(batches, recall_history, s=1)
-    ax.plot(batches, recall_smooth, lw=3, label='Pārklājums')
-    ax.scatter(batches, f_score_history, s=1)
-    ax.plot(batches, f_score_smooth, lw=3, label='F-mērs')
-
-    ax.set_title('Modeļa metrikas trenēšanas gaitā')
-    ax.set_xlabel('Trenēšanas partija')
-    ax.set_ylabel('Metrika')
-    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
-    ax.legend()
-    ax.grid(True)
-    fig.savefig('training_metrics.png')
-    fig.clf()
+    draw_graph(x_label='Trenēšanas partija', y_label='Metrika', title='Modeļa metrikas trenēšanas gaitā',
+               filename='training_metrics.png', data=[
+            {'label': 'Pareizība', 'data': accuracy_history},
+            {'label': 'Pareizība', 'data': accuracy_history},
+            {'label': 'Pareizība', 'data': accuracy_history},
+            {'label': 'Pareizība', 'data': accuracy_history}, ])
 
     # model saving
     state_dict = model.state_dict()
@@ -177,36 +171,12 @@ def test_model(model, test_loader, filename):
             recall_history.append(recall)
             f_score_history.append(f_score)
 
-    batches = list(range(1, len(accuracy_history) + 1))
-    a = np.polyfit(np.log(batches), accuracy_history, 1)
-    accuracy_smooth = a[0] * np.log(batches) + a[1]
-    a = np.polyfit(np.log(batches), precision_history, 1)
-    precision_smooth = a[0] * np.log(batches) + a[1]
-    a = np.polyfit(np.log(batches), recall_history, 1)
-    recall_smooth = a[0] * np.log(batches) + a[1]
-    a = np.polyfit(np.log(batches), f_score_history, 1)
-    f_score_smooth = a[0] * np.log(batches) + a[1]
-
-    plt.rcParams['font.family'] = 'serif'
-    fig, ax = plt.subplots()
-
-    ax.scatter(batches, accuracy_history, s=1)
-    ax.plot(batches, accuracy_smooth, lw=3, label='Pareizība')
-    ax.scatter(batches, precision_history, s=1)
-    ax.plot(batches, precision_smooth, lw=3, label='Precizitāte')
-    ax.scatter(batches, recall_history, s=1)
-    ax.plot(batches, recall_smooth, lw=3, label='Pārklājums')
-    ax.scatter(batches, f_score_history, s=1)
-    ax.plot(batches, f_score_smooth, lw=3, label='F-mērs')
-
-    ax.set_title('Modeļa metrikas testēšanas gaitā')
-    ax.set_xlabel('Testēšanas epohas partija')
-    ax.set_ylabel('Metrika')
-    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
-    ax.legend()
-    ax.grid()
-    fig.savefig('testing_metrics.png')
-    fig.clf()
+    draw_graph(x_label='Testēšanas epohas partija', y_label='Metrika', title='Modeļa metrikas testēšanas gaitā',
+               filename='testing_metrics.png', data=[
+            {'label': 'Pareizība', 'data': accuracy_history},
+            {'label': 'Precizitāte', 'data': precision_history},
+            {'label': 'Pārklājums', 'data': recall_history},
+            {'label': 'F-mērs', 'data': f_score_history}], )
 
     logger.info(f'Average accuracy: {np.average(accuracy_history):.2%}')
     logger.info(f'Average precision: {np.average(precision_history):.2%}')
