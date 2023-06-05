@@ -3,11 +3,15 @@ import json
 import re
 import time
 
+import requests
+import torch
 from progiter import ProgIter
 
 from corpus.commoncrawl import CommonCrawl
 from corpus.word import Word
+from features import Features
 from lemmatizer import Lemmatizer
+from training import NeologismClassificator
 from utils.db import db_cursor, is_word_in_db
 from utils.logger import get_configured_logger
 from utils.stopwords import get_stopwords
@@ -69,11 +73,6 @@ def write_non_existing_lemmas_to_csv():
     logger.info(f'Words written: {written_counter}')
 
 
-def model():
-    """  """
-    pass
-
-
 def refine_lemma_not_found_table():
     with db_cursor() as cur, \
             open('to_delete.json', 'w', encoding='utf-8') as to_delete:
@@ -99,22 +98,47 @@ def delete_from_lemma_not_found_table():
             cur.execute('delete from dict.lemma_not_found_in_tezaurs where number_line = any( %s )', (lines,))
 
 
-def remove_the_ending_of_the_word(word: Word):
-    """ Some words are not being lemmatized correctly  """
+def extract_neologisms(text: str):
+    req = requests.post('http://localhost:9500/api/nlp', json={
+        'steps': ['tokenizer', 'morpho', 'parser', 'ner'],  # maybe add another step
+        'data': {
+            'text': text
+        }
+    })
 
+    if not (data := req.json().get('data')):
+        return
 
-# TODO
-#  1. check whether there is index by words in entries table
-#  1. get the text
-#  2. move it through LVTagger or sth
-#  3. check if words are in DB
-#  4. ML classification
+    model = NeologismClassificator(input_size=21)
+    model.load_state_dict(torch.load('./model_with_random_sampler.pt'))
+    model.eval()
+
+    with torch.no_grad():
+        output = []
+        for sentence in data['sentences']:
+            sentence_cat = ''
+            sentence_potential_neologisms = []
+            for token in sentence['tokens']:
+                sentence_cat += token['form'] + ' '
+                if token['tag'][0] != 'z' and token['tag'] not in ('xo', 'xn') \
+                        and (not re.search(r'Leksēmas_nr=\d+\|', token['features'])
+                             and not is_word_in_db(token['lemma'])):
+                    sentence_potential_neologisms.append(token)
+
+            filtered = list(filter(lambda ner: token['form'] in ner['text'], sentence['ner']))
+            ner_label = filtered[0]['label'] if filtered else None
+            features = [Features(word={**t, 'sentence': sentence_cat, 'ner': ner_label}).get_data_for_tensor() for t in
+                        sentence_potential_neologisms]
+            predictions = model(torch.tensor(features, dtype=torch.float32))
+            output.extend(zip(sentence_potential_neologisms, predictions))
+        output.sort(key=lambda x: x[1], reverse=True)
+        return output
 
 
 if __name__ == '__main__':
-    # write_non_existing_lemmas_to_csv()
-    # refine_lemma_not_found_table()
-    delete_from_lemma_not_found_table()
-
-    # with db_cursor() as cur:
-    #     cur.execute('select * from dict.')
+    test_sentence = 'Mēs vairs neesam koviddisidenti. Tik un tā, mana māte vnk copy visas manas atbildes šajā eksprestestā.'
+    results = extract_neologisms(test_sentence)
+    print(f'Input text: {test_sentence}')
+    print('Possible neologisms that should be considered for being added to the vocabulary')
+    for token, prediction in results:
+        print(f"Word: {token['form']:15} | Lemma: {token['lemma']:15} | Confidence: {prediction.item():.2%}")
