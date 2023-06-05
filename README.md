@@ -26,10 +26,10 @@ After training the model its efficiency is as follows (x-axis: batch number; y-a
 
 ![Testing metrics of the model](./backend/testing_metrics.png)
 
-- Accuracy (_Pareizība_): 42.70%
-- Precision (_Precizitāte_): 22.96%
-- Recall (_Pārklājums_): 59.02%
-- F-score (_F-mērs_): 31.76%
+- Accuracy (_Pareizība_): 77.86%
+- Precision (_Precizitāte_): 40.56%
+- Recall (_Pārklājums_): 61.73%
+- F-score (_F-mērs_): 46.80%
 
 Based on the metrics received from testing the model it is seen that there are still ways to improve the efficiency 
 of the model. Two main options: optimization of the dataset (oversampling and overall increase of records) and model 
