@@ -47,6 +47,9 @@ class Features:
     # paragraph_topic: Topics
 
     def __init__(self, word: dict):
+        if not word.get('tagset'):
+            word['tagset'] = word['tag']
+
         self.length = len(word['form'])
         self.only_alpha = True if re.match('^\w+$', word['form'].lower(), re.UNICODE) else False
         self.only_lv_characters = True if re.match('^[abcdefghijklmnoprstuvzāčēģīķļņšūž]+$',
